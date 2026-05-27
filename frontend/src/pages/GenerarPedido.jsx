@@ -2,560 +2,392 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, LogOut, Plus, Trash2 } from 'lucide-react';
 
-export default function GenerarPedido() {
+const API = 'http://localhost:8080/api';
 
+export default function GenerarPedido() {
     const navigate = useNavigate();
 
-    const [combos, setCombos] = useState({
-        chefs: [],
-        mozos: [],
-        alimentos: []
-    });
+    // ── Combos cargados del backend ──────────────────────────────────────────
+    const [combos, setCombos] = useState({ chefs: [], mozos: [], alimentos: [] });
 
-    const [pedidoForm, setPedidoForm] = useState({
-        chefId: '',
-        meseroId: '',
-        alimentoId: '',
-        numeroMesa: ''
-    });
+    // ── Formulario para armar UN pedido ─────────────────────────────────────
+    const FORM_VACIO = { chefId: '', meseroId: '', platoId: '', bebidaId: '', numeroMesa: '' };
+    const [pedidoForm, setPedidoForm] = useState(FORM_VACIO);
 
-    // NUEVO ESTADO PARA LA TABLA
-    const [pedidos, setPedidos] = useState([]);
+    // ── Tabla local de pedidos pendientes (aún no enviados) ──────────────────
+    const [pendientes, setPendientes] = useState([]);
 
+    // ── Pedidos ya confirmados y persistidos en BD ───────────────────────────
+    const [confirmados, setConfirmados] = useState([]);
+
+    const [cargando, setCargando] = useState(false);
+    const [mensaje, setMensaje] = useState(null); // { tipo: 'ok'|'error', texto }
+
+    // ── Carga inicial de combos y pedidos guardados ──────────────────────────
     useEffect(() => {
-
         const fetchSeguro = async (url) => {
             try {
                 const res = await fetch(url);
-
                 if (!res.ok) return [];
-
                 const data = await res.json();
-
                 return Array.isArray(data) ? data : [];
-
-            } catch (error) {
-                console.error(`Error de conexión con ${url}`, error);
+            } catch {
                 return [];
             }
         };
 
-        const cargarDatos = async () => {
-
-            const [c, m, a] = await Promise.all([
-                fetchSeguro('http://localhost:8080/api/chefs'),
-                fetchSeguro('http://localhost:8080/api/meseros'),
-                fetchSeguro('http://localhost:8080/api/alimentos')
+        const cargarTodo = async () => {
+            const [c, m, a, p] = await Promise.all([
+                fetchSeguro(`${API}/chefs`),
+                fetchSeguro(`${API}/meseros`),
+                fetchSeguro(`${API}/alimentos`),
+                fetchSeguro(`${API}/pedidos`),   // ← carga pedidos ya en BD
             ]);
-
-            setCombos({
-                chefs: c,
-                mozos: m,
-                alimentos: a
-            });
+            setCombos({ chefs: c, mozos: m, alimentos: a });
+            setConfirmados(p);
         };
 
-        cargarDatos();
-
+        cargarTodo();
     }, []);
 
-    // AGREGAR PEDIDO A LA TABLA
+    // ── Helpers para obtener labels a partir de IDs ──────────────────────────
+    const nombreChef    = (id) => combos.chefs.find(c => c.id === id)?.nombre    ?? '—';
+    const nombreMozo    = (id) => combos.mozos.find(m => m.id === id)?.nombre    ?? '—';
+    const nombreAlimento= (id) => combos.alimentos.find(a => a.id === id)?.nombre ?? '—';
+    const precioAlimento= (id) => combos.alimentos.find(a => a.id === id)?.precio ?? 0;
+
+    // ── Mostrar mensaje temporal ─────────────────────────────────────────────
+    const mostrarMensaje = (tipo, texto) => {
+        setMensaje({ tipo, texto });
+        setTimeout(() => setMensaje(null), 4000);
+    };
+
+    // ── AGREGAR a la lista local (todavía NO va al backend) ──────────────────
     const agregarPedido = () => {
-
-        if (
-            !pedidoForm.chefId ||
-            !pedidoForm.meseroId ||
-            !pedidoForm.alimentoId ||
-            !pedidoForm.numeroMesa
-        ) {
-            alert("Completa todos los campos.");
+        const { chefId, meseroId, platoId, numeroMesa } = pedidoForm;
+        if (!chefId || !meseroId || !platoId || !numeroMesa) {
+            mostrarMensaje('error', 'Completa Chef, Mozo, Mesa y Plato antes de agregar.');
             return;
         }
 
-        const chefSeleccionado = combos.chefs.find(
-            c => c.id === parseInt(pedidoForm.chefId)
-        );
+        const total =
+            precioAlimento(parseInt(platoId)) +
+            (pedidoForm.bebidaId ? precioAlimento(parseInt(pedidoForm.bebidaId)) : 0);
 
-        const mozoSeleccionado = combos.mozos.find(
-            m => m.id === parseInt(pedidoForm.meseroId)
-        );
+        setPendientes(prev => [...prev, {
+            _tmpId:     Date.now(),          // clave local temporal
+            chefId:     parseInt(chefId),
+            meseroId:   parseInt(meseroId),
+            platoId:    parseInt(platoId),
+            bebidaId:   pedidoForm.bebidaId ? parseInt(pedidoForm.bebidaId) : null,
+            numeroMesa: parseInt(numeroMesa),
+            total,
+        }]);
 
-        const alimentoSeleccionado = combos.alimentos.find(
-            a => a.id === parseInt(pedidoForm.alimentoId)
-        );
-
-        const nuevoPedido = {
-            id: pedidos.length + 1,
-            chef: chefSeleccionado.nombre,
-            mozo: mozoSeleccionado.nombre,
-            plato: alimentoSeleccionado.nombre,
-            total: alimentoSeleccionado.precio,
-            mesa: pedidoForm.numeroMesa
-        };
-
-        setPedidos([...pedidos, nuevoPedido]);
-
-        setPedidoForm({
-            chefId: '',
-            meseroId: '',
-            alimentoId: '',
-            numeroMesa: ''
-        });
+        setPedidoForm(FORM_VACIO);
     };
 
-    // ELIMINAR PEDIDO
-    const eliminarPedido = (id) => {
-        setPedidos(pedidos.filter(p => p.id !== id));
-    };
+    // ── QUITAR de la lista local (sin tocar BD) ──────────────────────────────
+    const quitarPendiente = (tmpId) =>
+        setPendientes(prev => prev.filter(p => p._tmpId !== tmpId));
 
-    // ENVIAR AL BACKEND
+    // ── CONFIRMAR: persiste todos los pendientes en la BD ────────────────────
     const confirmarPedidos = async () => {
-
-        if (pedidos.length === 0) {
-            alert("No hay pedidos cargados.");
+        if (pendientes.length === 0) {
+            mostrarMensaje('error', 'No hay pedidos pendientes para confirmar.');
             return;
         }
-
+        setCargando(true);
         try {
+            for (const p of pendientes) {
+                const body = {
+                    chefId:     p.chefId,
+                    meseroId:   p.meseroId,
+                    platoId:    p.platoId,          // ← campo correcto para el backend
+                    bebidaId:   p.bebidaId ?? null,
+                    numeroMesa: p.numeroMesa,
+                };
 
-            for (const pedido of pedidos) {
-
-                await fetch('http://localhost:8080/api/pedidos', {
+                const res = await fetch(`${API}/pedidos`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        chefId: combos.chefs.find(c => c.nombre === pedido.chef)?.id,
-                        meseroId: combos.mozos.find(m => m.nombre === pedido.mozo)?.id,
-                        alimentoId: combos.alimentos.find(a => a.nombre === pedido.plato)?.id,
-                        numeroMesa: parseInt(pedido.mesa)
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
                 });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`Error al guardar pedido mesa ${p.numeroMesa}: ${errText}`);
+                }
             }
 
-            alert("Pedidos confirmados correctamente.");
+            // Recarga los confirmados desde la BD
+            const actualizados = await fetch(`${API}/pedidos`).then(r => r.json()).catch(() => []);
+            setConfirmados(Array.isArray(actualizados) ? actualizados : []);
 
-            setPedidos([]);
-
-        } catch (error) {
-
-            alert("Error al guardar pedidos.");
-
+            setPendientes([]);
+            mostrarMensaje('ok', `✅ ${pendientes.length} pedido(s) guardado(s) correctamente.`);
+        } catch (err) {
+            mostrarMensaje('error', `❌ ${err.message}`);
+        } finally {
+            setCargando(false);
         }
     };
 
-
-// Estilo corregido para forzar el texto oscuro y alinear los bordes
-    const inputStyle = {
-        width: '100%',
-        padding: '10px 12px',
-        border: '1px solid #cbd5e1',
-        borderRadius: '4px',
-        backgroundColor: '#ffffff', // Fondo blanco
-        color: '#0f172a',           // <--- ESTA ES LA CLAVE: Texto azul oscuro/casi negro
-        boxSizing: 'border-box',    // Evita que el padding rompa el ancho
-        outline: 'none',
-        fontSize: '14px'
+    // ── ENTREGAR: elimina el pedido de la BD y lo quita de la vista ──────────
+    const entregarPedido = async (id) => {
+        if (!window.confirm('¿Confirmar entrega y eliminar este pedido de la BD?')) return;
+        try {
+            const res = await fetch(`${API}/pedidos/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(await res.text());
+            setConfirmados(prev => prev.filter(p => p.id !== id));
+            mostrarMensaje('ok', `✅ Pedido #${id} entregado y eliminado.`);
+        } catch (err) {
+            mostrarMensaje('error', `❌ ${err.message}`);
+        }
     };
 
-    const labelStyle = {
-        fontWeight: 'bold',
-        marginBottom: '8px',
-        display: 'block',
-        color: '#374151'
-    };
+    // ── Separar alimentos por tipo para los combos ───────────────────────────
+    const platos  = combos.alimentos.filter(a => a.tipo !== 'Bebida');
+    const bebidas = combos.alimentos.filter(a => a.tipo === 'Bebida');
 
+    // ────────────────────────────────────────────────────────────────────────
     return (
+        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '20px', fontFamily: 'Arial' }}>
 
-        <div
-            style={{
-                maxWidth: '1200px',
-                margin: '0 auto',
-                padding: '20px',
-                fontFamily: 'Arial'
-            }}
-        >
-
-            {/* TITULO */}
-
-            <h2
-                style={{
-                    textAlign: 'center',
-                    marginBottom: '25px',
-                    color: '#1e293b'
-                }}
-            >
-                Generador de pedido final
+            <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#1e293b' }}>
+                Generador de Pedidos
             </h2>
 
-            {/* PANEL SUPERIOR */}
+            {/* Mensaje de estado */}
+            {mensaje && (
+                <div style={{
+                    padding: '12px 16px', borderRadius: '6px', marginBottom: '16px',
+                    backgroundColor: mensaje.tipo === 'ok' ? '#dcfce7' : '#fee2e2',
+                    color: mensaje.tipo === 'ok' ? '#166534' : '#991b1b',
+                    fontWeight: 'bold', border: `1px solid ${mensaje.tipo === 'ok' ? '#86efac' : '#fca5a5'}`
+                }}>
+                    {mensaje.texto}
+                </div>
+            )}
 
-            <fieldset
-                style={{
-                    border: '1px solid #cbd5e1',
-                    padding: '20px',
-                    marginBottom: '30px'
-                }}
-            >
+            {/* ── Panel de formulario ── */}
+            <fieldset style={{ border: '1px solid #cbd5e1', padding: '20px', marginBottom: '24px', borderRadius: '6px' }}>
+                <legend style={{ fontWeight: 'bold', padding: '0 8px' }}>Nuevo Pedido</legend>
 
-                <legend
-                    style={{
-                        fontWeight: 'bold'
-                    }}
-                >
-                    Datos del Pedido
-                </legend>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '14px' }}>
 
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(5, 1fr)',
-                        gap: '14px'
-                    }}
-                >
-
-                    {/* CHEF */}
-
+                    {/* Chef */}
                     <div>
-
-                        <label style={labelStyle}>
-                            Chef
-                        </label>
-
-                        <select
-                            style={inputStyle}
-                            value={pedidoForm.chefId}
-                            onChange={(e) =>
-                                setPedidoForm({
-                                    ...pedidoForm,
-                                    chefId: e.target.value
-                                })
-                            }
-                        >
-
-                            <option value="">
-                                Seleccione
-                            </option>
-
-                            {combos.chefs.map(c => (
-                                <option
-                                    key={c.id}
-                                    value={c.id}
-                                >
-                                    {c.nombre}
-                                </option>
-                            ))}
-
+                        <label style={labelStyle}>Chef</label>
+                        <select style={inputStyle} value={pedidoForm.chefId}
+                                onChange={e => setPedidoForm({ ...pedidoForm, chefId: e.target.value })}>
+                            <option value="">Seleccione</option>
+                            {combos.chefs.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
-
                     </div>
 
-                    {/* MOZO */}
-
+                    {/* Mozo */}
                     <div>
-
-                        <label style={labelStyle}>
-                            Mozo
-                        </label>
-
-                        <select
-                            style={inputStyle}
-                            value={pedidoForm.meseroId}
-                            onChange={(e) =>
-                                setPedidoForm({
-                                    ...pedidoForm,
-                                    meseroId: e.target.value
-                                })
-                            }
-                        >
-
-                            <option value="">
-                                Seleccione
-                            </option>
-
-                            {combos.mozos.map(m => (
-                                <option
-                                    key={m.id}
-                                    value={m.id}
-                                >
-                                    {m.nombre}
-                                </option>
-                            ))}
-
+                        <label style={labelStyle}>Mozo</label>
+                        <select style={inputStyle} value={pedidoForm.meseroId}
+                                onChange={e => setPedidoForm({ ...pedidoForm, meseroId: e.target.value })}>
+                            <option value="">Seleccione</option>
+                            {combos.mozos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
                         </select>
-
                     </div>
 
-                    {/* MESA */}
-
+                    {/* Mesa */}
                     <div>
-
-                        <label style={labelStyle}>
-                            Cliente (mesa)
-                        </label>
-
-                        <input
-                            type="number"
-                            placeholder="Numero de mesa"
-                            style={inputStyle}
-                            value={pedidoForm.numeroMesa}
-                            onChange={(e) =>
-                                setPedidoForm({
-                                    ...pedidoForm,
-                                    numeroMesa: e.target.value
-                                })
-                            }
-                        />
-
+                        <label style={labelStyle}>Mesa Nº</label>
+                        <input type="number" min="1" placeholder="Ej: 3" style={inputStyle}
+                               value={pedidoForm.numeroMesa}
+                               onChange={e => setPedidoForm({ ...pedidoForm, numeroMesa: e.target.value })} />
                     </div>
 
-                    {/* PLATO */}
-
+                    {/* Plato */}
                     <div>
-
-                        <label style={labelStyle}>
-                            Plato
-                        </label>
-
-                        <select
-                            style={inputStyle}
-                            value={pedidoForm.alimentoId}
-                            onChange={(e) =>
-                                setPedidoForm({
-                                    ...pedidoForm,
-                                    alimentoId: e.target.value
-                                })
-                            }
-                        >
-
-                            <option value="">
-                                Seleccione
-                            </option>
-
-                            {combos.alimentos.map(a => (
-                                <option
-                                    key={a.id}
-                                    value={a.id}
-                                >
-                                    {a.nombre} (${a.precio})
-                                </option>
+                        <label style={labelStyle}>Plato / Postre</label>
+                        <select style={inputStyle} value={pedidoForm.platoId}
+                                onChange={e => setPedidoForm({ ...pedidoForm, platoId: e.target.value })}>
+                            <option value="">Seleccione</option>
+                            {platos.map(a => (
+                                <option key={a.id} value={a.id}>{a.nombre} (${a.precio})</option>
                             ))}
-
                         </select>
-
                     </div>
 
-                    {/* BOTON AGREGAR */}
+                    {/* Bebida (opcional) */}
+                    <div>
+                        <label style={labelStyle}>Bebida <span style={{ fontWeight: 'normal', color: '#94a3b8' }}>(opcional)</span></label>
+                        <select style={inputStyle} value={pedidoForm.bebidaId}
+                                onChange={e => setPedidoForm({ ...pedidoForm, bebidaId: e.target.value })}>
+                            <option value="">Sin bebida</option>
+                            {bebidas.map(b => (
+                                <option key={b.id} value={b.id}>{b.nombre} (${b.precio})</option>
+                            ))}
+                        </select>
+                    </div>
 
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'end'
-                        }}
-                    >
-
-                        <button
-                            onClick={agregarPedido}
-                            style={{
-                                width: '100%',
-                                backgroundColor: '#22c55e',
-                                color: 'white',
-                                border: 'none',
-                                padding: '12px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px'
-                            }}
-                        >
-
-                            <Plus size={18} />
-
-                            AGREGAR
-
+                    {/* Botón Agregar */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button onClick={agregarPedido} style={{
+                            width: '100%', backgroundColor: '#22c55e', color: 'white',
+                            border: 'none', padding: '10px', cursor: 'pointer',
+                            fontWeight: 'bold', borderRadius: '4px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                        }}>
+                            <Plus size={18} /> AGREGAR
                         </button>
-
                     </div>
 
                 </div>
-
             </fieldset>
 
-            {/* TABLA */}
-
-            <fieldset
-                style={{
-                    border: '1px solid #cbd5e1',
-                    padding: '10px'
-                }}
-            >
-
-                <legend
-                    style={{
-                        fontWeight: 'bold'
-                    }}
-                >
-                    Historial de Pedidos Pendientes
+            {/* ── Tabla de pendientes (no guardados aún) ── */}
+            <fieldset style={{ border: '1px solid #fbbf24', padding: '10px 16px', marginBottom: '24px', borderRadius: '6px' }}>
+                <legend style={{ fontWeight: 'bold', padding: '0 8px', color: '#92400e' }}>
+                    Pendientes de confirmar ({pendientes.length})
                 </legend>
 
-                <table
-                    style={{
-                        width: '100%',
-                        borderCollapse: 'collapse'
-                    }}
-                >
-
-                    <thead>
-
-                    <tr
-                        style={{
-                            backgroundColor: '#e2e8f0'
-                        }}
-                    >
-
-                        <th style={thStyle}>Id</th>
-                        <th style={thStyle}>Plato</th>
-                        <th style={thStyle}>Mozo</th>
-                        <th style={thStyle}>Mesa</th>
-                        <th style={thStyle}>Chef</th>
-                        <th style={thStyle}>Total ($)</th>
-                        <th style={thStyle}>Eliminar pedido</th>
-                        <th style={thStyle}>Entregar pedido</th>
-
-                    </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                    {pedidos.map((pedido) => (
-
-                        <tr key={pedido.id}>
-
-                            <td style={tdStyle}>{pedido.id}</td>
-                            <td style={tdStyle}>{pedido.plato}</td>
-                            <td style={tdStyle}>{pedido.mozo}</td>
-                            <td style={tdStyle}>{pedido.mesa}</td>
-                            <td style={tdStyle}>{pedido.chef}</td>
-                            <td style={tdStyle}>${pedido.total}</td>
-
-                            <td style={tdStyle}>
-
-                                <button
-                                    onClick={() => eliminarPedido(pedido.id)}
-                                    style={{
-                                        backgroundColor: '#ef4444',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '8px 12px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-
-                                    <Trash2 size={16} />
-
-                                </button>
-
-                            </td>
-                            <td style={tdStyle}>
-
-                                <button
-                                    onClick={() => eliminarPedido(pedido.id)}
-                                    style={{
-                                        backgroundColor: '#22c55e',
-                                        border: 'none',
-                                        color: 'white',
-                                        padding: '8px 14px',
-                                        cursor: 'pointer',
-                                        fontWeight: 'bold',
-                                        borderRadius: '4px'
-                                    }}
-                                >
-
-                                    ENTREGAR
-
-                                </button>
-
-                            </td>
-
+                {pendientes.length === 0 ? (
+                    <p style={{ color: '#94a3b8', textAlign: 'center', margin: '12px 0' }}>
+                        Ningún pedido agregado todavía.
+                    </p>
+                ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                        <tr style={{ backgroundColor: '#fef9c3' }}>
+                            {['#', 'Chef', 'Mozo', 'Mesa', 'Plato', 'Bebida', 'Total', 'Quitar'].map(h => (
+                                <th key={h} style={thStyle}>{h}</th>
+                            ))}
                         </tr>
+                        </thead>
+                        <tbody>
+                        {pendientes.map((p, i) => (
+                            <tr key={p._tmpId}>
+                                <td style={tdStyle}>{i + 1}</td>
+                                <td style={tdStyle}>{nombreChef(p.chefId)}</td>
+                                <td style={tdStyle}>{nombreMozo(p.meseroId)}</td>
+                                <td style={tdStyle}>{p.numeroMesa}</td>
+                                <td style={tdStyle}>{nombreAlimento(p.platoId)}</td>
+                                <td style={tdStyle}>{p.bebidaId ? nombreAlimento(p.bebidaId) : '—'}</td>
+                                <td style={{ ...tdStyle, color: '#16a34a', fontWeight: 'bold' }}>${p.total.toFixed(2)}</td>
+                                <td style={tdStyle}>
+                                    <button onClick={() => quitarPendiente(p._tmpId)} style={btnRojo}>
+                                        <Trash2 size={15} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                )}
 
-                    ))}
-
-                    </tbody>
-
-                </table>
-
+                {pendientes.length > 0 && (
+                    <div style={{ textAlign: 'right', marginTop: '12px' }}>
+                        <button onClick={confirmarPedidos} disabled={cargando} style={{
+                            backgroundColor: cargando ? '#94a3b8' : '#3b82f6',
+                            color: 'white', border: 'none', padding: '10px 24px',
+                            fontWeight: 'bold', borderRadius: '4px', cursor: cargando ? 'not-allowed' : 'pointer'
+                        }}>
+                            {cargando ? 'Guardando...' : `💾 CONFIRMAR Y GUARDAR (${pendientes.length})`}
+                        </button>
+                    </div>
+                )}
             </fieldset>
 
-            {/* BOTONES INFERIORES */}
+            {/* ── Tabla de pedidos confirmados (en BD) ── */}
+            <fieldset style={{ border: '1px solid #86efac', padding: '10px 16px', borderRadius: '6px' }}>
+                <legend style={{ fontWeight: 'bold', padding: '0 8px', color: '#166534' }}>
+                    Pedidos en curso — guardados en BD ({confirmados.length})
+                </legend>
 
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    gap: '20px',
-                    marginTop: '30px'
-                }}
-            >
+                {confirmados.length === 0 ? (
+                    <p style={{ color: '#94a3b8', textAlign: 'center', margin: '12px 0' }}>
+                        No hay pedidos activos en la base de datos.
+                    </p>
+                ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                        <tr style={{ backgroundColor: '#dcfce7' }}>
+                            {['ID', 'Chef', 'Mozo', 'Mesa', 'Plato', 'Bebida', 'Entregar'].map(h => (
+                                <th key={h} style={thStyle}>{h}</th>
+                            ))}
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {confirmados.map(p => (
+                            <tr key={p.id}>
+                                <td style={tdStyle}>{p.id}</td>
+                                <td style={tdStyle}>{p.chefNombre}</td>
+                                <td style={tdStyle}>{p.meseroNombre}</td>
+                                <td style={tdStyle}>{p.numeroMesa}</td>
+                                <td style={tdStyle}>{p.platoNombre}</td>
+                                <td style={tdStyle}>{p.bebidaNombre ?? '—'}</td>
+                                <td style={tdStyle}>
+                                    <button onClick={() => entregarPedido(p.id)} style={btnVerde}>
+                                        ENTREGAR ✓
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                )}
+            </fieldset>
 
-                <button
-                    onClick={() => navigate('/')}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        padding: '10px 20px',
-                        border: 'none',
-                        cursor: 'pointer'
-                    }}
-                >
-
-                    <ArrowLeft size={16} />
-
-                    Volver
-
+            {/* Botones inferiores */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px' }}>
+                <button onClick={() => navigate('/')} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    backgroundColor: '#3b82f6', color: 'white',
+                    padding: '10px 20px', border: 'none', borderRadius: '4px',
+                    fontWeight: 'bold', cursor: 'pointer'
+                }}>
+                    <ArrowLeft size={16} /> Volver
                 </button>
-
-                <button
-                    onClick={() => alert('Sesión finalizada')}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        padding: '10px 20px',
-                        border: 'none',
-                        cursor: 'pointer'
-                    }}
-                >
-
-                    <LogOut size={16} />
-
-                    Salir
-
+                <button onClick={() => alert('Sesión finalizada')} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    backgroundColor: '#ef4444', color: 'white',
+                    padding: '10px 20px', border: 'none', borderRadius: '4px',
+                    fontWeight: 'bold', cursor: 'pointer'
+                }}>
+                    <LogOut size={16} /> Salir
                 </button>
-
             </div>
 
         </div>
     );
 }
 
+// ── Estilos compartidos ──────────────────────────────────────────────────────
+const inputStyle = {
+    width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1',
+    borderRadius: '4px', backgroundColor: '#ffffff', color: '#0f172a',
+    boxSizing: 'border-box', outline: 'none', fontSize: '14px'
+};
+
+const labelStyle = {
+    fontWeight: 'bold', marginBottom: '6px', display: 'block', color: '#374151', fontSize: '13px'
+};
+
 const thStyle = {
-    border: '1px solid #cbd5e1',
-    padding: '10px',
-    fontWeight: 'bold'
+    border: '1px solid #cbd5e1', padding: '9px 10px',
+    fontWeight: 'bold', textAlign: 'center', fontSize: '13px'
 };
 
 const tdStyle = {
-    border: '1px solid #cbd5e1',
-    padding: '10px',
-    textAlign: 'center'
+    border: '1px solid #cbd5e1', padding: '9px 10px', textAlign: 'center', fontSize: '13px'
+};
+
+const btnRojo = {
+    backgroundColor: '#ef4444', border: 'none', color: 'white',
+    padding: '6px 10px', cursor: 'pointer', borderRadius: '4px',
+    display: 'inline-flex', alignItems: 'center'
+};
+
+const btnVerde = {
+    backgroundColor: '#22c55e', border: 'none', color: 'white',
+    padding: '6px 14px', cursor: 'pointer', fontWeight: 'bold',
+    borderRadius: '4px', fontSize: '12px'
 };

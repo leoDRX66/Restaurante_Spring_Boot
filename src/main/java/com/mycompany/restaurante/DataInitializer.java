@@ -29,6 +29,17 @@ public class DataInitializer implements CommandLineRunner {
 
         System.out.println(">>> Cargando datos iniciales...");
 
+        // ---- ALIMENTOS ----
+
+        // Platos fuertes
+        alimentoRepository.save(new PlatoFuerte("Milanesa a la Napolitana", 15000.0));
+
+        // Bebida
+        alimentoRepository.save(new Bebida("Coca Cola", 3000.0));
+
+        // Postre
+        alimentoRepository.save(new Postres("Flan con Dulce de Leche", 6000.0));
+
         // ---- CHEFS ----
         // Constructor actualizado: Chef(nombre, turno, especialidad, anosExperiencia, salario)
         Chef chef1 = new Chef("Juan Pérez", "11:00 - 18:30", "Asado y Carnes", 6, 5000.0);
