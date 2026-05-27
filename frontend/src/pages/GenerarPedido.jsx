@@ -416,13 +416,14 @@ export default function GenerarPedido() {
                         }}
                     >
 
+                        <th style={thStyle}>Id</th>
                         <th style={thStyle}>Plato</th>
                         <th style={thStyle}>Mozo</th>
                         <th style={thStyle}>Mesa</th>
                         <th style={thStyle}>Chef</th>
                         <th style={thStyle}>Total ($)</th>
-                        <th style={thStyle}>Acción</th>
-                        <th style={thStyle}>Entregar Pedido</th>
+                        <th style={thStyle}>Eliminar pedido</th>
+                        <th style={thStyle}>Entregar pedido</th>
 
                     </tr>
 

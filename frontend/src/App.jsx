@@ -20,7 +20,6 @@ function Sidebar({ collapsed, onToggle }) {
                 {!collapsed && (
                     <div className="logo-text">
                         <h2>Restaurante</h2>
-                        <span>Gestión MVC</span>
                     </div>
                 )}
 

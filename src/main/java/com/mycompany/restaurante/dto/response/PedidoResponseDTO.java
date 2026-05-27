@@ -5,55 +5,137 @@ import com.mycompany.restaurante.model.Pedido;
 public class PedidoResponseDTO {
 
     private int id;
+
+    private int chefId;
+    private String chefNombre;
+
+    private int meseroId;
+    private String meseroNombre;
+
+    private int platoId;
+    private String platoNombre;
+
+    private Integer bebidaId;
+    private String bebidaNombre;
+
     private int numeroMesa;
-    private String nombreChef;
-    private String nombreMesero;
-    private String nombrePlato;
-    private double precioPlato;
-    private String nombreBebida;
-    private double precioBebida;
-    private double total;
 
     public PedidoResponseDTO() {}
 
     public static PedidoResponseDTO from(Pedido pedido) {
+
         PedidoResponseDTO dto = new PedidoResponseDTO();
+
         dto.setId(pedido.getId());
+
+        // CHEF
+        if (pedido.getChef() != null) {
+            dto.setChefId(pedido.getChef().getId());
+            dto.setChefNombre(pedido.getChef().getNombre());
+        }
+
+        // MESERO
+        if (pedido.getMesero() != null) {
+            dto.setMeseroId(pedido.getMesero().getId());
+            dto.setMeseroNombre(pedido.getMesero().getNombre());
+        }
+
+        // PLATO
+        if (pedido.getPlato() != null) {
+            dto.setPlatoId(pedido.getPlato().getId());
+            dto.setPlatoNombre(pedido.getPlato().getNombre());
+        }
+
+        // BEBIDA
+        if (pedido.getBebida() != null) {
+            dto.setBebidaId(pedido.getBebida().getId());
+            dto.setBebidaNombre(pedido.getBebida().getNombre());
+        }
+
         dto.setNumeroMesa(pedido.getNumeroMesa());
-        dto.setNombreChef(pedido.getChef() != null ? pedido.getChef().getNombre() : "N/A");
-        dto.setNombreMesero(pedido.getMesero() != null ? pedido.getMesero().getNombre() : "N/A");
-        dto.setNombrePlato(pedido.getPlato() != null ? pedido.getPlato().getNombre() : "N/A");
-        dto.setPrecioPlato(pedido.getPlato() != null ? pedido.getPlato().getPrecio() : 0);
-        dto.setNombreBebida(pedido.getBebida() != null ? pedido.getBebida().getNombre() : "Sin bebida");
-        dto.setPrecioBebida(pedido.getBebida() != null ? pedido.getBebida().getPrecio() : 0);
-        dto.setTotal(pedido.getTotal());
+
         return dto;
     }
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+    // GETTERS Y SETTERS
 
-    public int getNumeroMesa() { return numeroMesa; }
-    public void setNumeroMesa(int numeroMesa) { this.numeroMesa = numeroMesa; }
+    public int getId() {
+        return id;
+    }
 
-    public String getNombreChef() { return nombreChef; }
-    public void setNombreChef(String nombreChef) { this.nombreChef = nombreChef; }
+    public void setId(int id) {
+        this.id = id;
+    }
 
-    public String getNombreMesero() { return nombreMesero; }
-    public void setNombreMesero(String nombreMesero) { this.nombreMesero = nombreMesero; }
+    public int getChefId() {
+        return chefId;
+    }
 
-    public String getNombrePlato() { return nombrePlato; }
-    public void setNombrePlato(String nombrePlato) { this.nombrePlato = nombrePlato; }
+    public void setChefId(int chefId) {
+        this.chefId = chefId;
+    }
 
-    public double getPrecioPlato() { return precioPlato; }
-    public void setPrecioPlato(double precioPlato) { this.precioPlato = precioPlato; }
+    public String getChefNombre() {
+        return chefNombre;
+    }
 
-    public String getNombreBebida() { return nombreBebida; }
-    public void setNombreBebida(String nombreBebida) { this.nombreBebida = nombreBebida; }
+    public void setChefNombre(String chefNombre) {
+        this.chefNombre = chefNombre;
+    }
 
-    public double getPrecioBebida() { return precioBebida; }
-    public void setPrecioBebida(double precioBebida) { this.precioBebida = precioBebida; }
+    public int getMeseroId() {
+        return meseroId;
+    }
 
-    public double getTotal() { return total; }
-    public void setTotal(double total) { this.total = total; }
+    public void setMeseroId(int meseroId) {
+        this.meseroId = meseroId;
+    }
+
+    public String getMeseroNombre() {
+        return meseroNombre;
+    }
+
+    public void setMeseroNombre(String meseroNombre) {
+        this.meseroNombre = meseroNombre;
+    }
+
+    public int getPlatoId() {
+        return platoId;
+    }
+
+    public void setPlatoId(int platoId) {
+        this.platoId = platoId;
+    }
+
+    public String getPlatoNombre() {
+        return platoNombre;
+    }
+
+    public void setPlatoNombre(String platoNombre) {
+        this.platoNombre = platoNombre;
+    }
+
+    public Integer getBebidaId() {
+        return bebidaId;
+    }
+
+    public void setBebidaId(Integer bebidaId) {
+        this.bebidaId = bebidaId;
+    }
+
+    public String getBebidaNombre() {
+        return bebidaNombre;
+    }
+
+    public void setBebidaNombre(String bebidaNombre) {
+        this.bebidaNombre = bebidaNombre;
+    }
+
+    public int getNumeroMesa() {
+        return numeroMesa;
+    }
+
+    public void setNumeroMesa(int numeroMesa) {
+        this.numeroMesa = numeroMesa;
+    }
 }

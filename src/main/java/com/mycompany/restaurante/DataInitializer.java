@@ -34,7 +34,7 @@ public class DataInitializer implements CommandLineRunner {
         Chef chef1 = new Chef("Juan Pérez", "11:00 - 18:30", "Asado y Carnes", 6, 5000.0);
         Chef chef2 = new Chef("María González", "18:30 - 02:00", "Mariscos y Pescados", 8, 4500.0);
         Chef chef3 = new Chef("Carlos López", "18:30 - 02:00", "Postres", 7, 4800.0);
-        Chef chef4 = new Chef("Carlos López", "18:30 - 02:00", "Postres", 3, 4800.0);
+        Chef chef4 = new Chef("Abigail Morgan", "18:30 - 02:00", "Postres", 3, 4800.0);
 
         chefRepository.save(chef1);
         chefRepository.save(chef2);
